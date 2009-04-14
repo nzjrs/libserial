@@ -1,0 +1,8 @@
+Libserial is a utilit library for working with serial ports. It wraps
+the excellent pyserial module and provides two classes
+
+SerialSender: 
+    A base class meant to be inherited from that handles state tracking
+    when changing the communication protocol of the serial port
+SerialChooser:
+    A Gtk+ widget for choosing and configuring serial ports
