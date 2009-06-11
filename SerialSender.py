@@ -56,6 +56,7 @@ class SerialSender(gobject.GObject):
         if self._opened:
             self._serial.close()
             self._opened = False
+            self.emit("serial-connected", self._opened)
 
     def read(self, *args, **kwargs):
         raise NotImplementedError
