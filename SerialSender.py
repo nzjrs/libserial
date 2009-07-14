@@ -23,6 +23,9 @@ class SerialSender(gobject.GObject):
     def get_serial(self):
         return self._serial
 
+    def get_fd(self):
+        return self._serial.fileno()
+
     def is_open(self):
         return self._opened
 
