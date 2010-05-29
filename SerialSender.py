@@ -52,18 +52,27 @@ class SerialSender(gobject.GObject):
             except serial.SerialException:
                 self._opened = False
 
-        self.emit("serial-connected", self._opened)
+        self.on_serial_connected(self._opened)
         return self._opened
 
     def disconnect_from_port(self):
         if self._opened:
             self._serial.close()
             self._opened = False
-            self.emit("serial-connected", self._opened)
+            self.on_serial_connected(self._opened)
 
-    def read(self, *args, **kwargs):
-        raise NotImplementedError
+    def read(self, nbytes=5):
+        if self.is_open():
+            try:
+                return self._serial.read(nbytes)
+            except  serial.SerialTimeoutException:
+                pass
+        return ""
 
-    def write(self, *args, **kwargs):
-        raise NotImplementedError
+    def write(self, data):
+        if self.is_open():
+            self._serial.write(data)
+
+    def on_serial_connected(self, connected):
+        self.emit("serial-connected", connected)
 
