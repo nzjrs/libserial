@@ -59,7 +59,7 @@
 #   RFC).
 # the order of the options is not relevant
 
-from serialutil import *
+from serial.serialutil import *
 import time
 import struct
 import socket
@@ -363,6 +363,8 @@ class RFC2217Serial(SerialBase):
         self._network_timeout = 3
         if self._port is None:
             raise SerialException("Port must be configured before it can be used.")
+        if self._isOpen:
+            raise SerialException("Port is already open.")
         try:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.connect(self.fromURL(self.portstr))
@@ -400,7 +402,7 @@ class RFC2217Serial(SerialBase):
             'parity':   TelnetSubnegotiation(self, 'parity',   SET_PARITY,   SERVER_SET_PARITY),
             'stopsize': TelnetSubnegotiation(self, 'stopsize', SET_STOPSIZE, SERVER_SET_STOPSIZE),
             }
-        # There are more subnegotiation object, combine all in one dictionary
+        # There are more subnegotiation objects, combine all in one dictionary
         # for easy access
         self._rfc2217_options = {
             'purge':    TelnetSubnegotiation(self, 'purge',    PURGE_DATA,   SERVER_PURGE_DATA),
@@ -575,7 +577,7 @@ class RFC2217Serial(SerialBase):
             try:
                 self._socket.sendall(data.replace(IAC, IAC_DOUBLED))
             except socket.error, e:
-                raise SerialException("socket connection failed: %s" % e) # XXX what exception if socket connection fails
+                raise SerialException("connection failed (socket error): %s" % e) # XXX what exception if socket connection fails
         finally:
             self._write_lock.release()
         return len(data)
@@ -670,9 +672,12 @@ class RFC2217Serial(SerialBase):
                     # just need to get out of recv form time to time to check if
                     # still alive
                     continue
-                except socket.error:
+                except socket.error, e:
                     # connection fails -> terminate loop
+                    if self.logger:
+                        self.logger.debug("socket error in reader thread: %s" % (e,))
                     break
+                if not data: break # lost connection
                 for byte in data:
                     if mode == M_NORMAL:
                         # interpret as command or as data
@@ -803,10 +808,10 @@ class RFC2217Serial(SerialBase):
 
     def rfc2217SetControl(self, value):
         item = self._rfc2217_options['control']
-        item.set(value) # transmit desired purge type
+        item.set(value) # transmit desired control type
         if self._ignore_set_control_answer:
             # answers are ignored when option is set. compatibility mode for
-            # servers that answers, but not the expected ones... (or no answer
+            # servers that answer, but not the expected one... (or no answer
             # at all) i.e. sredird
             time.sleep(0.1)  # this helps getting the unit tests passed
         else:
@@ -871,7 +876,7 @@ else:
 
 class PortManager(object):
     """This class manages the state of Telnet and RFC 2217. It needs a serial
-    instance and a connection to work with. connection is expected to implement
+    instance and a connection to work with. Connection is expected to implement
     a (thread safe) write function, that writes the string to the network."""
 
     def __init__(self, serial_port, connection, logger=None):
@@ -974,9 +979,9 @@ class PortManager(object):
     # - outgoing data escaping
 
     def escape(self, data):
-        """this function is for the user. all outgoing data has to be properly
-        escaped, so that no IAC character in the data stream messes up the
-        Telnet state machine in the server.
+        """this generator function is for the user. all outgoing data has to be
+        properly escaped, so that no IAC character in the data stream messes up
+        the Telnet state machine in the server.
 
         socket.sendall(escape(data))
         """
